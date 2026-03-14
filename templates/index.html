@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FreeASR - 免费语音转文本</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .flash {
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        /* 加载动画 */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .loading-content {
+            background-color: white;
+            padding: 40px;
+            border-radius: 8px;
+            text-align: center;
+            max-width: 400px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4CAF50;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #4CAF50;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .progress-text {
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+        .status-text {
+            margin-top: 15px;
+            color: #333;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>FreeASR - 免费语音转文本</h1>
+    <div class="container">
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="flash">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% endwith %}
+        
+        <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="file">上传语音文件：</label>
+                <input type="file" id="file" name="file" accept="audio/*,.m4a" required>
+            </div>
+            <button type="submit" id="submitBtn">开始转写</button>
+        </form>
+        
+        <!-- 转写历史记录 -->
+        <div class="history-section" style="margin-top: 40px;">
+            <h2>转写历史</h2>
+            {% if history %}
+                <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+                    <thead>
+                        <tr style="background-color: #f2f2f2;">
+                            <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">文件名</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">时间</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">时长</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">大小</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in history %}
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding: 10px;">{{ item.filename }}</td>
+                            <td style="padding: 10px;">{{ item.timestamp }}</td>
+                            <td style="padding: 10px;">{{ item.duration }}</td>
+                            <td style="padding: 10px;">{{ item.file_size }}</td>
+                            <td style="padding: 10px;">
+                                <a href="/download/{{ item.transcription_file }}" style="margin-right: 10px; color: #4CAF50; text-decoration: none;">下载文本</a>
+                                <a href="/download/{{ item.log_file }}" style="color: #2196F3; text-decoration: none;">下载日志</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p style="margin-top: 20px; color: #666;">暂无转写历史</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 加载动画 -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <h3>正在处理语音文件...</h3>
+            <div class="progress-bar">
+                <div id="progressFill" class="progress-fill"></div>
+            </div>
+            <div id="progressText" class="progress-text">0%</div>
+            <div id="statusText" class="status-text">准备中...</div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            var fileInput = document.getElementById('file');
+            var file = fileInput.files[0];
+            
+            if (!file) {
+                alert('请选择文件');
+                return;
+            }
+            
+            // 显示加载动画
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            document.getElementById('submitBtn').disabled = true;
+            
+            // 创建FormData
+            var formData = new FormData();
+            formData.append('file', file);
+            
+            // 使用XMLHttpRequest上传文件
+            var xhr = new XMLHttpRequest();
+            var uploadStartTime = Date.now();
+            var taskId = null;
+            var eventSource = null;
+            
+            // 上传进度监控
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    var percentComplete = (e.loaded / e.total) * 100;
+                    // 上传阶段占15%
+                    var uploadProgress = Math.min(percentComplete * 0.15, 15);
+                    updateProgress(uploadProgress, '正在上传文件...');
+                    console.log('上传进度: ' + percentComplete.toFixed(2) + '%');
+                }
+            });
+            
+            // 上传完成后立即更新进度
+            xhr.upload.addEventListener('load', function() {
+                console.log('文件上传完成，开始处理...');
+                updateProgress(15, '文件上传完成，开始处理...');
+            });
+            
+            // 响应处理
+            xhr.addEventListener('load', function() {
+                console.log('收到服务器响应，状态码: ' + xhr.status);
+                console.log('响应内容: ' + xhr.responseText);
+                if (xhr.status === 200) {
+                    try {
+                        var response = JSON.parse(xhr.responseText);
+                        console.log('解析后的响应: ', response);
+                        if (response.task_id) {
+                            taskId = response.task_id;
+                            console.log('获取到任务ID: ' + taskId);
+                            // 建立SSE连接获取实时进度
+                            startSSE(taskId);
+                        } else if (response.error) {
+                            clearInterval(timeInterval);
+                            alert('上传错误: ' + response.error);
+                            document.getElementById('loadingOverlay').style.display = 'none';
+                            document.getElementById('submitBtn').disabled = false;
+                        }
+                    } catch (e) {
+                        console.error('解析响应失败: ', e);
+                        // 旧版响应，直接显示
+                        clearInterval(timeInterval);
+                        updateProgress(100, '处理完成！');
+                        setTimeout(function() {
+                            document.open();
+                            document.write(xhr.responseText);
+                            document.close();
+                        }, 500);
+                    }
+                } else {
+                    clearInterval(timeInterval);
+                    alert('服务器错误: ' + xhr.status);
+                    document.getElementById('loadingOverlay').style.display = 'none';
+                    document.getElementById('submitBtn').disabled = false;
+                }
+            });
+            
+            xhr.addEventListener('error', function() {
+                clearInterval(timeInterval);
+                alert('网络错误，请检查网络连接');
+                document.getElementById('loadingOverlay').style.display = 'none';
+                document.getElementById('submitBtn').disabled = false;
+            });
+            
+            xhr.addEventListener('timeout', function() {
+                clearInterval(timeInterval);
+                alert('请求超时，文件处理时间过长');
+                document.getElementById('loadingOverlay').style.display = 'none';
+                document.getElementById('submitBtn').disabled = false;
+            });
+            
+            // 设置超时时间为30分钟
+            // 使用完整的URL，确保上传请求发送到正确的服务器
+            var uploadUrl = window.location.origin + '/upload';
+            console.log('上传请求URL: ' + uploadUrl);
+            xhr.timeout = 1800000;
+            xhr.open('POST', uploadUrl, true);
+            xhr.send(formData);
+            
+            // 开始SSE连接
+            function startSSE(taskId) {
+                console.log('开始SSE连接，任务ID: ' + taskId);
+                // 使用完整的URL，确保SSE连接正确
+                var sseUrl = window.location.origin + '/progress/' + taskId;
+                console.log('SSE连接URL: ' + sseUrl);
+                eventSource = new EventSource(sseUrl);
+                
+                eventSource.onmessage = function(event) {
+                    try {
+                        var data = JSON.parse(event.data);
+                        console.log('收到进度更新:', data);
+                        
+                        if (data.status === 'processing') {
+                            // 更新进度和状态
+                            updateProgress(data.progress, data.message);
+                            
+                            // 显示处理日志
+                            if (data.log && data.log.length > 0) {
+                                var logText = data.log[data.log.length - 1];
+                                // 可以在这里添加日志显示
+                            }
+                        } else if (data.status === 'completed') {
+                            // 处理完成
+                            updateProgress(100, '处理完成！');
+                            eventSource.close();
+                            
+                            // 延迟一下让用户看到100%
+                            setTimeout(function() {
+                                // 构建结果页面
+                                var resultHtml = generateResultPage(data);
+                                document.open();
+                                document.write(resultHtml);
+                                document.close();
+                            }, 1000);
+                        } else if (data.status === 'error') {
+                            // 处理错误
+                            clearInterval(timeInterval);
+                            eventSource.close();
+                            alert('处理错误: ' + data.message);
+                            document.getElementById('loadingOverlay').style.display = 'none';
+                            document.getElementById('submitBtn').disabled = false;
+                        }
+                    } catch (e) {
+                        console.error('解析SSE数据失败:', e);
+                    }
+                };
+                
+                eventSource.onerror = function(error) {
+                    console.error('SSE连接错误:', error);
+                    eventSource.close();
+                };
+            }
+            
+            // 生成结果页面
+            function generateResultPage(data) {
+                var logHtml = '';
+                if (data.log) {
+                    logHtml = data.log.map(function(line) {
+                        return '<li>' + line + '</li>';
+                    }).join('');
+                }
+                
+                return `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>转写结果 - FreeASR</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .result-section {
+            margin-bottom: 30px;
+        }
+        .result-section h2 {
+            color: #4CAF50;
+            margin-bottom: 15px;
+        }
+        .transcription {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+        .process-log {
+            background-color: #f0f8ff;
+            padding: 20px;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .process-log ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        .process-log li {
+            margin-bottom: 5px;
+            padding-left: 20px;
+            position: relative;
+        }
+        .process-log li:before {
+            content: '▸';
+            position: absolute;
+            left: 0;
+            color: #4CAF50;
+        }
+        .button-group {
+            margin-top: 20px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        a {
+            color: #2196F3;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>FreeASR - 转写结果</h1>
+    <div class="container">
+        <div class="result-section">
+            <h2>转写文本</h2>
+            <div class="transcription">${data.transcription || '无转写结果'}</div>
+        </div>
+        
+        <div class="result-section">
+            <h2>处理过程</h2>
+            <div class="process-log">
+                <ul>${logHtml}</ul>
+            </div>
+        </div>
+        
+        <div class="button-group">
+            <a href="/download/${data.transcription_file}" class="button">下载转写全文</a>
+            <a href="/download/${data.log_file}" class="button">下载处理日志</a>
+            <form action="/ai-summary" method="post" style="display: inline;">
+                <input type="hidden" name="transcription" value="${encodeURIComponent(data.transcription || '')}">
+                <button type="submit">AI总结纪要</button>
+            </form>
+            <a href="/" class="button">返回首页</a>
+        </div>
+    </div>
+</body>
+</html>
+                `;
+            }
+            
+            // 开始计时
+            var startTime = Date.now();
+            var timeText = document.createElement('div');
+            timeText.id = 'timeText';
+            timeText.style.marginTop = '10px';
+            timeText.style.color = '#666';
+            timeText.style.fontSize = '14px';
+            document.querySelector('.loading-content').appendChild(timeText);
+            
+            // 更新时间显示
+            var timeInterval = setInterval(function() {
+                var elapsed = Math.floor((Date.now() - startTime) / 1000);
+                var minutes = Math.floor(elapsed / 60);
+                var seconds = elapsed % 60;
+                timeText.textContent = '已处理时间: ' + minutes + '分' + seconds + '秒';
+            }, 1000);
+            
+            // 根据进度返回状态文本
+            function getStatusText(percent) {
+                if (percent < 15) {
+                    return '正在上传文件...';
+                } else if (percent < 30) {
+                    return '正在分析音频...';
+                } else if (percent < 50) {
+                    return '正在切分音频片段...';
+                } else if (percent < 75) {
+                    return '正在识别语音内容(这可能需要几分钟)...';
+                } else if (percent < 95) {
+                    return '正在合并结果，请耐心等待...';
+                } else {
+                    return '即将完成...';
+                }
+            }
+            
+            // 更新进度和状态
+            function updateProgress(percent, status) {
+                document.getElementById('progressFill').style.width = percent + '%';
+                document.getElementById('progressText').textContent = Math.round(percent) + '%';
+                if (status) {
+                    document.getElementById('statusText').textContent = status;
+                }
+            }
+        });
+    </script>
+</body>
+</html>

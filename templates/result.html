@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>转写结果 - FreeASR</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        h2 {
+            color: #555;
+            margin-top: 30px;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .result {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-size: 16px;
+            line-height: 1.5;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .process-log {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #e3f2fd;
+            border-radius: 4px;
+            font-size: 14px;
+            line-height: 1.4;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-item {
+            margin-bottom: 5px;
+        }
+        .button-group {
+            margin-top: 30px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button, a {
+            display: inline-block;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #0069d9;
+        }
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .btn-success:hover {
+            background-color: #218838;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+        form {
+            display: inline;
+        }
+    </style>
+</head>
+<body>
+    <h1>转写结果</h1>
+    <div class="container">
+        <h2>转写文本</h2>
+        <div class="result">{{ transcription }}</div>
+        
+        <h2>处理过程</h2>
+        <div class="process-log">
+            {% for log in process_log %}
+            <div class="log-item">{{ log }}</div>
+            {% endfor %}
+        </div>
+        
+        <div class="button-group">
+            <a href="/download/{{ transcription_file }}" class="btn-primary">下载转写全文</a>
+            <a href="/download/{{ log_file }}" class="btn-secondary">下载处理日志</a>
+            <form action="/ai-summary" method="post">
+                <input type="hidden" name="transcription" value="{{ transcription }}">
+                <button type="submit" class="btn-success">AI总结纪要</button>
+            </form>
+            <a href="/" class="btn-secondary">返回上传页面</a>
+        </div>
+    </div>
+</body>
+</html>
