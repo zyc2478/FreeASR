@@ -2,3 +2,5 @@ Flask==2.0.1
 SpeechRecognition==3.10.0
 pydub==0.25.1
 Werkzeug==2.0.1
+jieba==0.42.1
+pypinyin==0.44.0

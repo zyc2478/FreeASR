@@ -7,6 +7,7 @@ import json
 import time
 import uuid
 import threading
+import jieba
 
 # 用于存储处理状态的全局字典
 processing_status = {}
@@ -17,6 +18,175 @@ status_lock = threading.Lock()
 
 # 历史记录文件
 HISTORY_FILE = 'transcription_history.json'
+
+# 分词和标点处理函数
+def process_transcription(text):
+    """处理ASR识别结果，添加分词、断句和标点"""
+    if not text:
+        return text
+    
+    # 1. 分词处理
+    words = jieba.cut(text)
+    segmented_text = ' '.join(words)
+    
+    # 2. 标点处理
+    # 替换常见的语气词和逻辑连接词
+    processed_text = segmented_text
+    
+    # 添加基本标点
+    punctuation_rules = [
+        (r'因为', '因为，'),
+        (r'所以', '，所以，'),
+        (r'然后', '，然后，'),
+        (r'但是', '，但是，'),
+        (r'然而', '，然而，'),
+        (r'所以', '，所以，'),
+        (r'因此', '，因此，'),
+        (r'总之', '，总之，'),
+        (r'最后', '，最后，'),
+        (r'首先', '首先，'),
+        (r'其次', '其次，'),
+        (r'再次', '再次，'),
+        (r'比如', '，比如，'),
+        (r'例如', '，例如，'),
+        (r'假设', '，假设，'),
+        (r'那么', '，那么，'),
+        (r'如果', '如果，'),
+        (r'虽然', '虽然，'),
+        (r'尽管', '尽管，'),
+        (r'不仅', '不仅，'),
+        (r'而且', '，而且，'),
+        (r'既', '既，'),
+        (r'又', '，又，'),
+        (r'无论', '无论，'),
+        (r'不管', '不管，'),
+        (r'只要', '只要，'),
+        (r'只有', '只有，'),
+        (r'除非', '除非，'),
+        (r'即使', '即使，'),
+        (r'就算', '就算，'),
+        (r'哪怕', '哪怕，'),
+        (r'如果', '如果，'),
+        (r'假如', '假如，'),
+        (r'倘若', '倘若，'),
+        (r'要是', '要是，'),
+        (r'不管', '不管，'),
+        (r'无论', '无论，'),
+        (r'不管怎样', '不管怎样，'),
+        (r'无论如何', '无论如何，'),
+        (r'总之', '，总之，'),
+        (r'综上所述', '，综上所述，'),
+        (r'由此可见', '，由此可见，'),
+        (r'因此', '，因此，'),
+        (r'所以', '，所以，'),
+        (r'故而', '，故而，'),
+        (r'因此', '，因此，'),
+        (r'于是', '，于是，'),
+        (r'从而', '，从而，'),
+        (r'进而', '，进而，'),
+        (r'此外', '，此外，'),
+        (r'另外', '，另外，'),
+        (r'还有', '，还有，'),
+        (r'同时', '，同时，'),
+        (r'并且', '，并且，'),
+        (r'而且', '，而且，'),
+        (r'再者', '，再者，'),
+        (r'另外', '，另外，'),
+        (r'不过', '，不过，'),
+        (r'但是', '，但是，'),
+        (r'可是', '，可是，'),
+        (r'然而', '，然而，'),
+        (r'却', '，却，'),
+        (r'反而', '，反而，'),
+        (r'其实', '，其实，'),
+        (r'事实上', '，事实上，'),
+        (r'实际上', '，实际上，'),
+        (r'的确', '，的确，'),
+        (r'确实', '，确实，'),
+        (r'真的', '，真的，'),
+        (r'假的', '，假的，'),
+        (r'肯定', '，肯定，'),
+        (r'否定', '，否定，'),
+        (r'同意', '，同意，'),
+        (r'反对', '，反对，'),
+        (r'支持', '，支持，'),
+        (r'反对', '，反对，'),
+        (r'喜欢', '，喜欢，'),
+        (r'讨厌', '，讨厌，'),
+        (r'爱', '，爱，'),
+        (r'恨', '，恨，'),
+        (r'高兴', '，高兴，'),
+        (r'难过', '，难过，'),
+        (r'开心', '，开心，'),
+        (r'伤心', '，伤心，'),
+        (r'兴奋', '，兴奋，'),
+        (r'沮丧', '，沮丧，'),
+        (r'愤怒', '，愤怒，'),
+        (r'平静', '，平静，'),
+        (r'紧张', '，紧张，'),
+        (r'放松', '，放松，'),
+        (r'担心', '，担心，'),
+        (r'放心', '，放心，'),
+        (r'希望', '，希望，'),
+        (r'失望', '，失望，'),
+        (r'期待', '，期待，'),
+        (r'绝望', '，绝望，'),
+        (r'相信', '，相信，'),
+        (r'怀疑', '，怀疑，'),
+        (r'信任', '，信任，'),
+        (r'怀疑', '，怀疑，'),
+        (r'确定', '，确定，'),
+        (r'不确定', '，不确定，'),
+        (r'清楚', '，清楚，'),
+        (r'模糊', '，模糊，'),
+        (r'明白', '，明白，'),
+        (r'糊涂', '，糊涂，'),
+        (r'理解', '，理解，'),
+        (r'误解', '，误解，'),
+        (r'知道', '，知道，'),
+        (r'不知道', '，不知道，'),
+        (r'了解', '，了解，'),
+        (r'不了解', '，不了解，'),
+        (r'熟悉', '，熟悉，'),
+        (r'陌生', '，陌生，'),
+        (r'认识', '，认识，'),
+        (r'不认识', '，不认识，'),
+        (r'记得', '，记得，'),
+        (r'忘记', '，忘记，'),
+        (r'想起', '，想起，'),
+        (r'忘记', '，忘记，'),
+        (r'记得', '，记得，'),
+        (r'忘记', '，忘记，'),
+        (r'想起', '，想起，'),
+        (r'忘记', '，忘记，'),
+    ]
+    
+    import re
+    for pattern, replacement in punctuation_rules:
+        processed_text = re.sub(pattern, replacement, processed_text)
+    
+    # 3. 断句处理 - 基于常见的句子结束标记
+    sentence_endings = [
+        '。', '！', '？', '；', '：',
+        '.', '!', '?', ';', ':',
+    ]
+    
+    # 确保文本以句号结尾
+    if processed_text and processed_text[-1] not in sentence_endings:
+        processed_text += '。'
+    
+    # 4. 清理多余的空格和标点
+    # 移除连续的空格
+    processed_text = re.sub(r'\s+', ' ', processed_text)
+    # 移除连续的标点
+    processed_text = re.sub(r'([，。！？；：])\1+', r'\1', processed_text)
+    # 移除句首和句尾的空格
+    processed_text = processed_text.strip()
+    
+    # 5. 分词处理 - 为了更好的可读性，保留分词空格
+    # 注意：这里我们已经在第一步进行了分词，所以这里可以根据需要调整
+    
+    return processed_text
 
 # 确保历史记录文件存在
 if not os.path.exists(HISTORY_FILE):
@@ -339,6 +509,12 @@ def process_file_async(task_id, file, safe_filename, temp_path):
             process_log.append("所有片段识别完成，正在合并结果")
             print(f"所有片段识别完成，共{len(transcriptions)}个片段")
             print(f"合并后的转写结果长度: {len(transcription)}字符")
+            
+            # 优化转写结果：添加分词、断句和标点
+            print("开始优化转写结果...")
+            optimized_transcription = process_transcription(transcription)
+            print(f"优化后的转写结果长度: {len(optimized_transcription)}字符")
+            process_log.append("转写结果优化完成")
         except Exception as e:
             # 如果切分处理失败，尝试整体识别
             process_log.append(f"切分处理失败，尝试整体识别: {str(e)}")
@@ -355,6 +531,12 @@ def process_file_async(task_id, file, safe_filename, temp_path):
                     audio = r.record(source)
                 transcription = r.recognize_google(audio, language='zh-CN')
                 process_log.append("整体识别成功")
+                
+                # 优化转写结果：添加分词、断句和标点
+                print("开始优化转写结果...")
+                optimized_transcription = process_transcription(transcription)
+                print(f"优化后的转写结果长度: {len(optimized_transcription)}字符")
+                process_log.append("转写结果优化完成")
             except Exception as inner_e:
                 raise inner_e
         
@@ -377,7 +559,7 @@ def process_file_async(task_id, file, safe_filename, temp_path):
         # 保存转写结果到临时文件，用于下载
         print("开始保存转写结果...")
         temp_transcription_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8')
-        temp_transcription_file.write(transcription)
+        temp_transcription_file.write(optimized_transcription)
         temp_transcription_file.close()
         print(f"转写结果已保存到: {temp_transcription_file.name}")
         
@@ -399,7 +581,7 @@ def process_file_async(task_id, file, safe_filename, temp_path):
             'file_size': f'{file_size_mb:.2f} MB',
             'transcription_file': os.path.basename(temp_transcription_file.name),
             'log_file': os.path.basename(temp_log_file.name),
-            'transcription_preview': transcription[:100] + '...' if len(transcription) > 100 else transcription
+            'transcription_preview': optimized_transcription[:100] + '...' if len(optimized_transcription) > 100 else optimized_transcription
         }
         history.append(history_entry)
         print(f"历史记录已添加，当前共{len(history)}条记录")
@@ -417,7 +599,7 @@ def process_file_async(task_id, file, safe_filename, temp_path):
                 'progress': 100,
                 'message': '处理完成！',
                 'log': process_log,
-                'transcription': transcription,
+                'transcription': optimized_transcription,
                 'transcription_file': os.path.basename(temp_transcription_file.name),
                 'log_file': os.path.basename(temp_log_file.name)
             }
